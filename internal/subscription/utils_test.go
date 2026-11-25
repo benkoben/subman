@@ -3,270 +3,183 @@ package subscription
 import (
 	"testing"
 	"time"
+
+	"github.com/Rhymond/go-money"
+
+	"subman/internal/plan"
 )
 
-func Test_isLeapYear(t *testing.T) {
+// sek builds an in-package SEK amount for test fixtures.
+func sek(amount int64) *money.Money {
+	return money.New(amount, money.SEK)
+}
+
+func Test_stepPeriod(t *testing.T) {
 	tests := []struct {
-		name string // description of this test case
-		// Named input parameters for target function.
-		year int
-		want bool
+		name      string
+		from      time.Time
+		frequency plan.BillingFrequency
+		want      time.Time
+		wantErr   bool
 	}{
 		{
-			name: "leap year 2020",
-			year: 2020,
-			want: true,
+			name:      "mid month monthly",
+			from:      time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC),
+			frequency: plan.Monthly,
+			want:      time.Date(2026, time.February, 15, 12, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "non leap year 2026",
-			year: 2026,
-			want: false,
+			name:      "month end normalizes through the shorter month",
+			from:      time.Date(2026, time.January, 31, 12, 0, 0, 0, time.UTC),
+			frequency: plan.Monthly,
+			want:      time.Date(2026, time.March, 3, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			name:      "february end steps to the same day in march",
+			from:      time.Date(2026, time.February, 28, 12, 0, 0, 0, time.UTC),
+			frequency: plan.Monthly,
+			want:      time.Date(2026, time.March, 28, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			name:      "december steps across the year boundary",
+			from:      time.Date(2026, time.December, 15, 12, 0, 0, 0, time.UTC),
+			frequency: plan.Monthly,
+			want:      time.Date(2027, time.January, 15, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			name:      "annual keeps month and day",
+			from:      time.Date(2025, time.January, 15, 12, 0, 0, 0, time.UTC),
+			frequency: plan.Annually,
+			want:      time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			name:      "leap day annual normalizes to march 1",
+			from:      time.Date(2024, time.February, 29, 12, 0, 0, 0, time.UTC),
+			frequency: plan.Annually,
+			want:      time.Date(2025, time.March, 1, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			name:      "unknown billing frequency",
+			from:      time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC),
+			frequency: plan.BillingFrequency("weekly"),
+			wantErr:   true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isLeapYear(tt.year)
-			if !got == tt.want {
-				t.Errorf("isLeapYear() = %v, want %v", got, tt.want)
+			got, err := stepPeriod(tt.from, tt.frequency)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("stepPeriod() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if !got.Equal(tt.want) {
+				t.Errorf("stepPeriod() = %s, want %s", got, tt.want)
 			}
 		})
 	}
 }
 
-func Test_newMonthInDaysMap(t *testing.T) {
+func Test_amountAt(t *testing.T) {
+	intervals := []PriceInterval{
+		{from: time.Date(2026, time.January, 17, 12, 0, 0, 0, time.UTC), amount: *sek(30)},
+		{from: time.Date(2026, time.March, 17, 12, 0, 0, 0, time.UTC), amount: *sek(45)},
+		{from: time.Date(2026, time.May, 17, 12, 0, 0, 0, time.UTC), amount: *sek(100)},
+	}
+
 	tests := []struct {
-		name string // description of this test case
-		// Named input parameters for target function.
-		year      int
-		want      monthInDaysMap
-		testMonth int
+		name       string
+		intervals  []PriceInterval
+		at         time.Time
+		wantAmount int64
 	}{
 		{
-			name: "leap year",
-			year: 2020,
-			want: monthInDaysMap{
-				time.Month(1):  31,
-				time.Month(2):  29,
-				time.Month(3):  31,
-				time.Month(4):  30,
-				time.Month(5):  31,
-				time.Month(6):  30,
-				time.Month(7):  31,
-				time.Month(8):  31,
-				time.Month(9):  30,
-				time.Month(10): 31,
-				time.Month(11): 30,
-				time.Month(12): 31,
+			name:       "exactly at the first interval From",
+			intervals:  intervals,
+			at:         time.Date(2026, time.January, 17, 12, 0, 0, 0, time.UTC),
+			wantAmount: 30,
+		},
+		{
+			name:       "between first and second uses the first amount",
+			intervals:  intervals,
+			at:         time.Date(2026, time.February, 17, 12, 0, 0, 0, time.UTC),
+			wantAmount: 30,
+		},
+		{
+			name:       "exactly at the second interval From uses the new amount",
+			intervals:  intervals,
+			at:         time.Date(2026, time.March, 17, 12, 0, 0, 0, time.UTC),
+			wantAmount: 45,
+		},
+		{
+			name:       "between second and third uses the second amount",
+			intervals:  intervals,
+			at:         time.Date(2026, time.April, 17, 12, 0, 0, 0, time.UTC),
+			wantAmount: 45,
+		},
+		{
+			name:       "after the last interval uses the last amount",
+			intervals:  intervals,
+			at:         time.Date(2027, time.June, 17, 12, 0, 0, 0, time.UTC),
+			wantAmount: 100,
+		},
+		{
+			name: "single interval applies forever",
+			intervals: []PriceInterval{
+				{from: time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC), amount: *sek(300)},
 			},
-			testMonth: 2,
-		},
-		{
-			name: "non leap year",
-			year: 2026,
-			want: monthInDaysMap{
-				time.Month(1):  31,
-				time.Month(2):  28,
-				time.Month(3):  31,
-				time.Month(4):  30,
-				time.Month(5):  31,
-				time.Month(6):  30,
-				time.Month(7):  31,
-				time.Month(8):  31,
-				time.Month(9):  30,
-				time.Month(10): 31,
-				time.Month(11): 30,
-				time.Month(12): 31,
-			},
-			testMonth: 2,
+			at:         time.Date(2030, time.January, 15, 12, 0, 0, 0, time.UTC),
+			wantAmount: 300,
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := newMonthInDaysMap(tt.year)
-			// TODO: update the condition below to compare got with tt.want.
-			if got[time.Month(tt.testMonth)] != tt.want[time.Month(tt.testMonth)] {
-				t.Errorf("newMonthInDaysMap() = %v, want %v", got, tt.want)
+			got := amountAt(tt.intervals, tt.at)
+			if got.Amount() != tt.wantAmount {
+				t.Errorf("amountAt() amount = %d, want %d", got.Amount(), tt.wantAmount)
+			}
+			if got.Currency().Code != money.SEK {
+				t.Errorf("amountAt() currency = %q, want %q", got.Currency().Code, money.SEK)
 			}
 		})
 	}
 }
 
-func Test_monthInDaysMap_daysInRange(t *testing.T) {
+func Test_sortIntervals(t *testing.T) {
 	tests := []struct {
-		name string // description of this test case
-		// Named input parameters for receiver constructor.
-		year int
-		// Named input parameters for target function.
-		start int
-		stop  int
-		want  int
+		name          string
+		inFromMonths  []time.Month
+		wantFromOrder []time.Month
 	}{
 		{
-			name:  "january to march",
-			year:  2026,
-			start: 1,
-			stop:  3,
-			want:  90,
+			name:          "already sorted stays sorted",
+			inFromMonths:  []time.Month{time.January, time.March, time.May},
+			wantFromOrder: []time.Month{time.January, time.March, time.May},
 		},
 		{
-			name:  "whole year",
-			year:  2026,
-			start: 1,
-			stop:  12,
-			want:  365,
-		},
-		{
-			name:  "whole leap year",
-			year:  2020,
-			start: 1,
-			stop:  12,
-			want:  366,
+			name:          "out of order entries are reordered",
+			inFromMonths:  []time.Month{time.May, time.January, time.March},
+			wantFromOrder: []time.Month{time.January, time.March, time.May},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := newMonthInDaysMap(tt.year)
-			got := m.daysInRange(tt.start, tt.stop)
-			// TODO: update the condition below to compare got with tt.want.
-			if got != tt.want {
-				t.Errorf("daysInRange() = %v, want %v", got, tt.want)
+			intervals := make([]PriceInterval, 0, len(tt.inFromMonths))
+			for i, month := range tt.inFromMonths {
+				intervals = append(intervals, PriceInterval{
+					from:   time.Date(2026, month, 17, 12, 0, 0, 0, time.UTC),
+					amount: *sek(int64(30 + 10*i)),
+				})
 			}
-		})
-	}
-}
 
-func Test_monthDifference(t *testing.T) {
-	tests := []struct {
-		name string // description of this test case
-		// Named input parameters for target function.
-		past  time.Time
-		today time.Time
-		want  int
-	}{
-		{
-			name:  "same day",
-			past:  time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC),
-			want:  0,
-		},
-		{
-			name:  "one complete month",
-			past:  time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.February, 15, 0, 0, 0, 0, time.UTC),
-			want:  1,
-		},
-		{
-			name:  "day not reached yet",
-			past:  time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.February, 14, 0, 0, 0, 0, time.UTC),
-			want:  0,
-		},
-		{
-			name:  "day passed in next month",
-			past:  time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.February, 16, 0, 0, 0, 0, time.UTC),
-			want:  1,
-		},
-		{
-			name:  "year boundary completed month",
-			past:  time.Date(2025, time.December, 15, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC),
-			want:  1,
-		},
-		{
-			name:  "year boundary day not reached",
-			past:  time.Date(2025, time.December, 31, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.January, 30, 0, 0, 0, 0, time.UTC),
-			want:  0,
-		},
-		{
-			name:  "year boundary day reached",
-			past:  time.Date(2025, time.December, 31, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.January, 31, 0, 0, 0, 0, time.UTC),
-			want:  1,
-		},
-		{
-			name:  "multiple years",
-			past:  time.Date(2023, time.March, 10, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.June, 10, 0, 0, 0, 0, time.UTC),
-			want:  39,
-		},
-		{
-			name:  "multiple years with incomplete month",
-			past:  time.Date(2023, time.March, 20, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.June, 19, 0, 0, 0, 0, time.UTC),
-			want:  38,
-		},
-		{
-			name:  "exactly one year",
-			past:  time.Date(2025, time.June, 1, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC),
-			want:  12,
-		},
-		{
-			name:  "same month earlier day",
-			past:  time.Date(2026, time.March, 20, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.March, 10, 0, 0, 0, 0, time.UTC),
-			want:  -1,
-		},
-		{
-			name:  "leap year February",
-			past:  time.Date(2024, time.January, 29, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2024, time.February, 29, 0, 0, 0, 0, time.UTC),
-			want:  1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := monthDifference(tt.past, tt.today)
-			// TODO: update the condition below to compare got with tt.want.
-			if got != tt.want {
-				t.Errorf("monthDifference() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
+			sortIntervals(intervals)
 
-func Test_yearDifference(t *testing.T) {
-	tests := []struct {
-		name string // description of this test case
-		// Named input parameters for target function.
-		past  time.Time
-		today time.Time
-		want  int
-	}{
-		{
-			name:  "1 year difference",
-			past:  time.Date(2025, time.January, 13, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.January, 13, 0, 0, 0, 0, time.UTC),
-			want:  1,
-		},
-		{
-			name:  "2025 and 2026 but no complete month yet",
-			past:  time.Date(2025, time.January, 13, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.January, 12, 0, 0, 0, 0, time.UTC),
-			want:  0,
-		},
-		{
-			name:  "2025 and 2026 but no complete year yet",
-			past:  time.Date(2025, time.February, 13, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.January, 13, 0, 0, 0, 0, time.UTC),
-			want:  0,
-		},
-		{
-			name:  "2020 and 2026 but no complete year yet",
-			past:  time.Date(2020, time.February, 13, 0, 0, 0, 0, time.UTC),
-			today: time.Date(2026, time.March, 13, 0, 0, 0, 0, time.UTC),
-			want:  6,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := yearDifference(tt.past, tt.today)
-			// TODO: update the condition below to compare got with tt.want.
-			if got != tt.want {
-				t.Errorf("yearDifference() = %v, want %v", got, tt.want)
+			for i, wantMonth := range tt.wantFromOrder {
+				_, gotMonth, _ := intervals[i].From().Date()
+				if gotMonth != wantMonth {
+					t.Fatalf("intervals[%d].From() month = %v, want %v", i, gotMonth, wantMonth)
+				}
 			}
 		})
 	}
