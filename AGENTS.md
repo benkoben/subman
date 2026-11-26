@@ -32,6 +32,11 @@ Routine implementation plans do not require ADRs. Create an ADR only when a deci
 
 Write qualifying decisions as `Proposed` and obtain explicit user acceptance before implementing them. Use the format and lifecycle in [ADR 0002](docs/adr/0002-record-architectural-decisions.md), and update the [ADR index](docs/adr/README.md). Preserve accepted ADRs as history; material changes require a superseding ADR. Deliver an ADR in the same changeset as its implementation.
 
+## Branch and pull request naming
+
+- Always name branches `<type>/<short-description>`, using lowercase kebab-case for the description (for example, `feat/subscription-reminders`).
+- Always title pull requests `(<type>) <short description>` (for example, `(feat) Add subscription reminders`).
+
 ## Determinism and tooling
 
 - Strive for deterministic, repeatable work using the tools, systems, and patterns already in place. Do not introduce replacement or parallel tooling without justification.
