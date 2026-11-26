@@ -31,6 +31,12 @@ go vet ./...
 go build ./...
 ```
 
+The process-level integration test uses a real MongoDB deployment and is skipped by default. To run it against a disposable deployment, set `SUBMAN_TEST_MONGODB_URI`; the credentials must be allowed to create, write, and drop the test's unique database:
+
+```sh
+SUBMAN_TEST_MONGODB_URI=mongodb://localhost:27017 go test .
+```
+
 ## Architecture
 
 - `internal/plan`: Plan value object and billing frequency.
@@ -39,8 +45,8 @@ go build ./...
 - `internal/user`: identity-only User records.
 - `internal/repository`: generic repository contract with `memory` and `mongodb` adapters.
 - `internal/app`: use cases over the repositories (the Service).
-- `internal/api`: JSON HTTP API over the Service.
-- `main.go`: the runner that wires the MongoDB repositories into the Service and serves the API.
+- `internal/api`: JSON HTTP API over the Service. `NewServer` composes the `http.Handler`, `routes.go` maps the complete API surface, and resource handlers are maker functions with explicit dependencies.
+- `main.go`: the minimal process entry point and injectable `run` function. `run` wires the MongoDB repositories into the Service and serves the API using explicit context, environment, error-output, and listener dependencies.
 
 ## HTTP API
 
@@ -58,6 +64,10 @@ Conventions:
 - Request bodies are decoded strictly: unknown fields and anything after the single JSON value are rejected.
 - List responses are arrays in an unspecified order.
 - Removal and Cancellation keep their records and references. Both are idempotent: the earliest timestamp wins.
+
+### Health
+
+- `GET /healthz` — returns `200` with `{"status":"ok"}` once the HTTP server is running. MongoDB connectivity is verified before the server starts.
 
 ### Users
 

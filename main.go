@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,42 +30,56 @@ const (
 )
 
 func main() {
-	if err := run(); err != nil {
-		log.Fatal(err)
+	if err := run(context.Background(), os.Getenv, os.Stderr, net.Listen); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 
-func run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+func run(
+	ctx context.Context,
+	getenv func(string) string,
+	stderr io.Writer,
+	listen func(network, address string) (net.Listener, error),
+) error {
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	logger := log.New(stderr, "", log.LstdFlags)
+
 	startupCtx, cancel := context.WithTimeout(ctx, startupTimeout)
-	client, err := mongodb.Connect(startupCtx, getenv("MONGODB_URI", defaultMongoURI))
+	client, err := mongodb.Connect(startupCtx, envOrDefault(getenv, "MONGODB_URI", defaultMongoURI))
 	cancel()
 	if err != nil {
 		return err
 	}
-	defer disconnect(client)
+	defer disconnect(client, logger)
 
-	database := getenv("MONGODB_DATABASE", defaultDatabase)
+	database := envOrDefault(getenv, "MONGODB_DATABASE", defaultDatabase)
 	svc := app.NewService(
 		mongodb.NewUserRepository(mongodb.Collection(client, database, "users")),
 		mongodb.NewCardRepository(mongodb.Collection(client, database, "cards")),
 		mongodb.NewSubscriptionRepository(mongodb.Collection(client, database, "subscriptions")),
 	)
 
-	addr := getenv("HTTP_ADDR", defaultHTTPAddr)
+	addr := envOrDefault(getenv, "HTTP_ADDR", defaultHTTPAddr)
+	listener, err := listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen http: %w", err)
+	}
+
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           api.NewHandler(svc),
+		Handler:           api.NewServer(svc),
+		ErrorLog:          logger,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	serveErr := make(chan error, 1)
 	go func() {
-		serveErr <- srv.ListenAndServe()
+		serveErr <- srv.Serve(listener)
 	}()
-	log.Printf("subman listening on %s", addr)
+	logger.Printf("subman listening on %s", listener.Addr())
 
 	select {
 	case err := <-serveErr:
@@ -74,26 +90,32 @@ func run() error {
 	case <-ctx.Done():
 	}
 
-	log.Print("shutting down")
+	logger.Print("shutting down")
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancelShutdown()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown http server: %w", err)
+	shutdownErr := srv.Shutdown(shutdownCtx)
+	serveErrValue := <-serveErr
+
+	if shutdownErr != nil {
+		return fmt.Errorf("shutdown http server: %w", shutdownErr)
+	}
+	if serveErrValue != nil && !errors.Is(serveErrValue, http.ErrServerClosed) {
+		return fmt.Errorf("serve http: %w", serveErrValue)
 	}
 
 	return nil
 }
 
-func disconnect(client *mongo.Client) {
+func disconnect(client *mongo.Client, logger *log.Logger) {
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := client.Disconnect(ctx); err != nil {
-		log.Printf("disconnect mongodb: %v", err)
+		logger.Printf("disconnect mongodb: %v", err)
 	}
 }
 
-func getenv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
+func envOrDefault(getenv func(string) string, key, fallback string) string {
+	if v := getenv(key); v != "" {
 		return v
 	}
 	return fallback
