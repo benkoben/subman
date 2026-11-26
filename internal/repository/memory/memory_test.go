@@ -19,6 +19,8 @@ type testEntity struct {
 
 func idOf(e testEntity) string { return e.id }
 
+var testEntityOpts = cmp.AllowUnexported(testEntity{})
+
 // intEntity proves the contract is generic over the key type as well.
 type intEntity struct {
 	id   int
@@ -56,7 +58,7 @@ func TestRepositorySaveAndFindByID(t *testing.T) {
 			if err != nil {
 				t.Fatalf("FindByID() error = %v", err)
 			}
-			if diff := cmp.Diff(tt.entity, got); diff != "" {
+			if diff := cmp.Diff(tt.entity, got, testEntityOpts); diff != "" {
 				t.Errorf("FindByID() mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -80,7 +82,7 @@ func TestRepositorySaveUpsertOverwrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindByID() error = %v", err)
 	}
-	if diff := cmp.Diff(updated, got); diff != "" {
+	if diff := cmp.Diff(updated, got, testEntityOpts); diff != "" {
 		t.Errorf("FindByID() after upsert mismatch (-want +got):\n%s", diff)
 	}
 
@@ -110,6 +112,9 @@ func TestRepositoryFindByIDNotFound(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.id == "removed" {
+				if err := repo.Save(context.Background(), testEntity{id: tt.id, name: "Removed"}); err != nil {
+					t.Fatalf("Save() error = %v", err)
+				}
 				if err := repo.Delete(context.Background(), tt.id); err != nil {
 					t.Fatalf("Delete() error = %v", err)
 				}
@@ -166,7 +171,7 @@ func TestRepositoryFindAll(t *testing.T) {
 			"alpha": entities[0],
 			"beta":  entities[1],
 			"gamma": entities[2],
-		}, byID); diff != "" {
+		}, byID, testEntityOpts); diff != "" {
 			t.Errorf("FindAll() mismatch (-want +got):\n%s", diff)
 		}
 	})

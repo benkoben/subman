@@ -15,9 +15,12 @@ Subman is a personal, vendor-agnostic subscription tracker written in Go. It rec
 - `internal/payment`: PaymentMethod behavior and Card metadata.
 - `internal/user`: identity-only User records.
 - `internal/repository`: generic repository contract with `memory` and `mongodb` adapters.
+- `internal/app`: `Service` use cases composed over the repositories; the only place that coordinates aggregates and enforces ownership.
+- `internal/api`: JSON HTTP API (`NewHandler`) over the `Service`, with an injectable clock for derived state.
+- `main.go`: runner (`package main`) that wires the MongoDB repositories into the `Service`, serves the API, and shuts down gracefully. Configured by `MONGODB_URI`, `MONGODB_DATABASE`, and `HTTP_ADDR`.
 - `docs/adr`: architectural decisions and their index.
 
-Domain packages own their BSON mappings. Constructors validate invariants; lifecycle state is derived rather than stored. Follow existing functional-option and explicit-time `At` patterns where applicable. `main.go` is currently a placeholder, so no application run command exists.
+Domain packages own their BSON mappings. Constructors validate invariants; lifecycle state is derived rather than stored. Follow existing functional-option and explicit-time `At` patterns where applicable. Keep `main.go` as composition only; put behavior in `internal/app` or `internal/api`.
 
 ## Decisions and plans
 
