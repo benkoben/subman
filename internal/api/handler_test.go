@@ -25,7 +25,24 @@ func newTestHandler(t *testing.T, opts ...api.Option) http.Handler {
 	cards := memory.NewRepository(func(c *payment.Card) string { return c.ID().String() })
 	subs := memory.NewRepository(func(s *subscription.Subscription) string { return s.ID().String() })
 
-	return api.NewHandler(app.NewService(users, cards, subs), opts...)
+	return api.NewServer(app.NewService(users, cards, subs), opts...)
+}
+
+func TestGetHealthz(t *testing.T) {
+	h := newTestHandler(t)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	if body := strings.TrimSpace(rec.Body.String()); body != `{"status":"ok"}` {
+		t.Errorf("body = %s, want {\"status\":\"ok\"}", body)
+	}
 }
 
 func TestGetUsersEmptyReturnsEmptyArray(t *testing.T) {
