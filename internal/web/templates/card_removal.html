@@ -1,0 +1,14 @@
+{{define "content"}}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{profileURL .User.ID}}#wallet">Wallet</a><span aria-hidden="true">/</span><span>Removal</span></nav>
+<div class="form-layout">
+  <div class="form-intro"><p class="eyebrow">Retire payment metadata</p><h1>Record Card Removal</h1><p class="lede">This retires <strong>{{.Card.Name}}</strong> from active use in the Wallet.</p><p class="warning-copy">Removal does not delete the Card. Its history and every Subscription reference are retained.</p></div>
+  {{if .Card.CanRemove}}
+  <form method="post" action="{{removeCardURL .User.ID .Card.ID}}" class="panel stacked-form danger-panel">
+    <div class="field"><label for="removedAt">Removal time (UTC)</label><input id="removedAt" name="removedAt" type="datetime-local" step="1" value="{{.Form.Get "removedAt"}}" required autofocus></div>
+    <div class="form-actions"><a class="button button-quiet" href="{{profileURL .User.ID}}#wallet">Keep Card</a><button class="button button-danger" type="submit">Record Removal</button></div>
+  </form>
+  {{else}}
+  <div class="panel"><h2>Already removed</h2><p>This Card was removed at {{.Card.RemovedAt}}.</p><a class="button button-primary" href="{{profileURL .User.ID}}#wallet">Return to Wallet</a></div>
+  {{end}}
+</div>
+{{end}}

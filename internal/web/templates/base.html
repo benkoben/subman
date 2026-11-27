@@ -1,0 +1,43 @@
+{{define "base"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{{.Title}} · Subman</title>
+  <script>
+    try {
+      const theme = localStorage.getItem("subman-theme");
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    } catch (_) {}
+  </script>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/theme.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="/" aria-label="Subman home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span>Subman</span>
+      </a>
+      <nav class="header-actions" aria-label="Primary navigation">
+        {{if .User}}<a class="nav-link" href="{{profileURL .User.ID}}">Profile</a>{{end}}
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color scheme">
+          <span aria-hidden="true" data-theme-icon>◐</span>
+          <span data-theme-label>Dark mode</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+  <main id="main-content" class="container main-content">
+    {{if and .Error (ne .Content "error")}}<div class="alert" role="alert"><strong>Please check the form.</strong> {{.Error}}</div>{{end}}
+    {{template "content" .}}
+  </main>
+  <footer class="site-footer">
+    <div class="container">Subman records and estimates recurring costs. It never processes payments.</div>
+  </footer>
+</body>
+</html>{{end}}
+
