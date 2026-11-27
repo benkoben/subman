@@ -1,0 +1,11 @@
+{{define "content"}}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{subURL .User.ID .Subscription.ID}}">{{.Subscription.PlanName}}</a><span aria-hidden="true">/</span><span>Price Interval</span></nav>
+<div class="form-layout">
+  <div class="form-intro"><p class="eyebrow">{{.Subscription.PlanName}}</p><h1>Add a Price Interval</h1><p class="lede">Record the amount effective from a new point in the pricing history. Existing intervals remain unchanged.</p></div>
+  <form method="post" action="{{intervalURL .User.ID .Subscription.ID}}" class="panel stacked-form">
+    <div class="field"><label for="from">Effective from (UTC)</label><input id="from" name="from" type="datetime-local" step="1" value="{{.Form.Get "from"}}" required autofocus><small>Cannot be before the first charge or duplicate another interval.</small></div>
+    <div class="field"><label for="amount">Amount (SEK)</label><input id="amount" name="amount" type="number" min="1" step="1" inputmode="numeric" value="{{.Form.Get "amount"}}" required><small>Applied at each charge until the next Price Interval begins.</small></div>
+    <div class="form-actions"><a class="button button-quiet" href="{{subURL .User.ID .Subscription.ID}}#pricing">Cancel</a><button class="button button-primary" type="submit">Add Price Interval</button></div>
+  </form>
+</div>
+{{end}}

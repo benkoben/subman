@@ -1,0 +1,27 @@
+{{define "content"}}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{profileURL .User.ID}}">Profile</a><span aria-hidden="true">/</span><span>Add Subscription</span></nav>
+<div class="page-heading narrow-heading">
+  <div><p class="eyebrow">New recurring relationship</p><h1>Add a Subscription</h1><p class="lede">Describe the Plan and its opening billing amount. All amounts are Swedish kronor.</p></div>
+</div>
+<form method="post" action="{{newSubURL .User.ID}}" class="panel stacked-form wide-form">
+  <fieldset>
+    <legend>Plan</legend>
+    <div class="form-row">
+      <div class="field"><label for="planName">Plan name</label><input id="planName" name="planName" type="text" value="{{.Form.Get "planName"}}" placeholder="Premium" required autofocus></div>
+      <div class="field"><label for="vendor">Vendor</label><input id="vendor" name="vendor" type="text" value="{{.Form.Get "vendor"}}" placeholder="Example Streaming" required></div>
+    </div>
+    <div class="field"><label for="description">Description <span class="optional">Optional</span></label><textarea id="description" name="description" rows="3">{{.Form.Get "description"}}</textarea></div>
+    <div class="field"><label for="billingFrequency">Billing frequency</label><select id="billingFrequency" name="billingFrequency" required><option value="monthly" {{if eq (.Form.Get "billingFrequency") "monthly"}}selected{{end}}>Monthly</option><option value="annually" {{if eq (.Form.Get "billingFrequency") "annually"}}selected{{end}}>Annually</option></select></div>
+  </fieldset>
+  <fieldset>
+    <legend>Billing</legend>
+    <div class="form-row">
+      <div class="field"><label for="initialAmount">Opening amount (SEK)</label><input id="initialAmount" name="initialAmount" type="number" min="1" step="1" inputmode="numeric" value="{{.Form.Get "initialAmount"}}" required><small>The Intro Offer effective at the first charge.</small></div>
+      <div class="field"><label for="trialDays">Trial length in days <span class="optional">Optional</span></label><input id="trialDays" name="trialDays" type="number" min="1" step="1" inputmode="numeric" value="{{.Form.Get "trialDays"}}"><small>The trial is free. Leave blank for no trial.</small></div>
+    </div>
+    <div class="field"><label for="startDate">Start date and time (UTC)</label><input id="startDate" name="startDate" type="datetime-local" step="1" value="{{.Form.Get "startDate"}}" required><small>The first charge occurs at trial end, or at this time when there is no trial.</small></div>
+    <div class="field"><label for="paymentMethodID">PaymentMethod <span class="optional">Optional</span></label><select id="paymentMethodID" name="paymentMethodID"><option value="">Not tracked</option>{{range .Cards}}<option value="{{.ID}}" {{if eq ($.Form.Get "paymentMethodID") .ID}}selected{{end}}>{{.Name}} · {{.TypeLabel}} · {{.Status}}</option>{{end}}</select></div>
+  </fieldset>
+  <div class="form-actions"><a class="button button-quiet" href="{{profileURL .User.ID}}">Cancel</a><button class="button button-primary" type="submit">Add Subscription</button></div>
+</form>
+{{end}}

@@ -6,14 +6,20 @@ Subman is a personal, vendor-agnostic tracker: users record the Subscriptions th
 
 - Go 1.26.5 or newer (see `go.mod`)
 - MongoDB reachable at `MONGODB_URI`
+- Docker with the Compose plugin for the provided local MongoDB service
 
 ## Running
 
+Start the local infrastructure, then run the application on the host:
+
 ```sh
+docker compose up -d
 go run .
 ```
 
-The server connects to MongoDB, verifies the connection with a bounded startup timeout, and serves the HTTP API. `SIGINT` and `SIGTERM` trigger a graceful shutdown that stops accepting requests, waits up to 10 seconds for in-flight requests, and disconnects from MongoDB.
+Open <http://localhost:8080> for the web interface. The JSON API remains available at its existing routes on the same server. MongoDB data is retained in the `mongodb_data` named volume.
+
+The server connects to MongoDB, verifies the connection with a bounded startup timeout, and serves both the web interface and HTTP API. `SIGINT` and `SIGTERM` trigger a graceful shutdown that stops accepting requests, waits up to 10 seconds for in-flight requests, and disconnects from MongoDB.
 
 | Variable           | Default                     | Purpose                              |
 | ------------------ | --------------------------- | ------------------------------------ |
@@ -29,6 +35,7 @@ Records are stored in the collections `users`, `cards`, and `subscriptions`. The
 go test ./...
 go vet ./...
 go build ./...
+docker compose config
 ```
 
 The process-level integration test uses a real MongoDB deployment and is skipped by default. To run it against a disposable deployment, set `SUBMAN_TEST_MONGODB_URI`; the credentials must be allowed to create, write, and drop the test's unique database:
@@ -40,13 +47,22 @@ SUBMAN_TEST_MONGODB_URI=mongodb://localhost:27017 go test .
 ## Architecture
 
 - `internal/plan`: Plan value object and billing frequency.
-- `internal/subscription`: Subscription aggregate, lifecycle, Price Intervals, and Total Paid.
+- `internal/subscription`: Subscription aggregate, lifecycle, current amounts, Price Intervals, and Total Paid.
 - `internal/payment`: PaymentMethod behavior and Card metadata.
 - `internal/user`: identity-only User records.
 - `internal/repository`: generic repository contract with `memory` and `mongodb` adapters.
 - `internal/app`: use cases over the repositories (the Service).
 - `internal/api`: JSON HTTP API over the Service. `NewServer` composes the `http.Handler`, `routes.go` maps the complete API surface, and resource handlers are maker functions with explicit dependencies.
-- `main.go`: the minimal process entry point and injectable `run` function. `run` wires the MongoDB repositories into the Service and serves the API using explicit context, environment, error-output, and listener dependencies.
+- `internal/web`: self-contained server-rendered web interface. It owns its application-service boundary, routes, handlers, view models, embedded `html/template` templates, CSS, minimal JavaScript, and HTTP tests.
+- `main.go`: the minimal process entry point and injectable `run` function. `run` wires the MongoDB repositories into the Service and composes the web interface and API using explicit context, environment, error-output, and listener dependencies.
+
+## Web interface
+
+The interface uses Go `html/template`, semantic HTML, ordinary forms, and Post/Redirect/Get; no JavaScript framework or frontend build step is required. JavaScript is limited to the light/dark color-scheme switcher, which follows the operating-system preference until a choice is saved in the browser.
+
+Profiles provide User selection and creation, Subscription and Card creation, Subscription details, Price Intervals, Cancellation, and Card Removal. The Profile summary separates current monthly and annual recurring totals, counts Subscription phases, and aggregates estimated Total Paid. Active Subscriptions contribute to recurring totals, Trialing Subscriptions are counted separately, and Cancelled Subscriptions do not contribute. All entered and displayed timestamps use UTC.
+
+The web UI lives below `/profiles`; the existing JSON API paths are unchanged.
 
 ## HTTP API
 

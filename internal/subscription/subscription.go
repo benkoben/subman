@@ -223,6 +223,18 @@ func (s *Subscription) AddPriceInterval(from time.Time, amount int64) error {
 	return nil
 }
 
+// CurrentAmountAt returns the billing amount effective at the given moment.
+// The second return value is false before the first charge, when no Price
+// Interval is effective yet.
+func (s *Subscription) CurrentAmountAt(now time.Time) (*money.Money, bool) {
+	if now.Before(s.firstChargeDate()) {
+		return nil, false
+	}
+
+	amount := *amountAt(s.intervals, now)
+	return &amount, true
+}
+
 // TotalPaidAt reconstructs the sum of charges incurred from the first
 // charge until the cancellation, if cancelled, else the given now. Charges
 // are counted in started billing periods — vendors bill upfront at each

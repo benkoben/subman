@@ -1,0 +1,35 @@
+{{define "content"}}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{profileURL .User.ID}}">Profile</a><span aria-hidden="true">/</span><span>Add Card</span></nav>
+<div class="form-layout">
+  <div class="form-intro">
+    <p class="eyebrow">Wallet</p>
+    <h1>Add a Card</h1>
+    <p class="lede">Record identifying metadata only. Subman does not need or collect a card number, security code, or billing credentials.</p>
+  </div>
+  <form method="post" action="{{newCardURL .User.ID}}" class="panel stacked-form">
+    <div class="field">
+      <label for="name">Card name</label>
+      <input id="name" name="name" type="text" value="{{.Form.Get "name"}}" placeholder="Everyday debit" required autofocus>
+    </div>
+    <div class="field">
+      <label for="cardType">Card type</label>
+      <select id="cardType" name="cardType" required>
+        <option value="debit" {{if eq (.Form.Get "cardType") "debit"}}selected{{end}}>Debit</option>
+        <option value="credit" {{if eq (.Form.Get "cardType") "credit"}}selected{{end}}>Credit</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label for="expiryMonth">Expiry month</label>
+        <input id="expiryMonth" name="expiryMonth" type="number" min="1" max="12" inputmode="numeric" value="{{.Form.Get "expiryMonth"}}" required>
+      </div>
+      <div class="field">
+        <label for="expiryYear">Expiry year</label>
+        <input id="expiryYear" name="expiryYear" type="number" min="1" max="9999" inputmode="numeric" value="{{.Form.Get "expiryYear"}}" required>
+      </div>
+    </div>
+    <p class="help-text">The Card remains valid through the last moment of its expiry month.</p>
+    <div class="form-actions"><a class="button button-quiet" href="{{profileURL .User.ID}}#wallet">Cancel</a><button class="button button-primary" type="submit">Add Card</button></div>
+  </form>
+</div>
+{{end}}

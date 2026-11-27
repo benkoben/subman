@@ -263,6 +263,36 @@ func TestSubscription_Phase(t *testing.T) {
 	}
 }
 
+func TestSubscription_CurrentAmountAt(t *testing.T) {
+	s := mustSubscription(t, plan.Monthly, 30, WithStartDate(date(2026, time.January, 15)))
+	if err := s.AddPriceInterval(date(2026, time.March, 15), 100); err != nil {
+		t.Fatalf("AddPriceInterval() error = %v", err)
+	}
+
+	if amount, ok := s.CurrentAmountAt(date(2026, time.January, 14)); ok || amount != nil {
+		t.Fatalf("CurrentAmountAt() before first charge = %v, %t; want nil, false", amount, ok)
+	}
+
+	tests := []struct {
+		name string
+		now  time.Time
+		want int64
+	}{
+		{name: "intro offer", now: date(2026, time.January, 15), want: 30},
+		{name: "before later interval", now: date(2026, time.March, 14), want: 30},
+		{name: "new interval at its start", now: date(2026, time.March, 15), want: 100},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			amount, ok := s.CurrentAmountAt(tt.now)
+			if !ok {
+				t.Fatal("CurrentAmountAt() ok = false, want true")
+			}
+			assertSEK(t, "CurrentAmountAt()", *amount, tt.want)
+		})
+	}
+}
+
 func TestSubscription_TotalPaidAt(t *testing.T) {
 	tests := []struct {
 		name string

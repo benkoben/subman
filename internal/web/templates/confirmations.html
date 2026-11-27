@@ -1,0 +1,14 @@
+{{define "content"}}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{subURL .User.ID .Subscription.ID}}">{{.Subscription.PlanName}}</a><span aria-hidden="true">/</span><span>Cancellation</span></nav>
+<div class="form-layout">
+  <div class="form-intro"><p class="eyebrow">Terminal lifecycle action</p><h1>Record Cancellation</h1><p class="lede">This records your in-app statement that <strong>{{.Subscription.PlanName}}</strong> is cancelled. It does not contact {{.Subscription.Vendor}} or cancel the vendor-side service.</p><p class="warning-copy">Cancellation is terminal. The Subscription and its pricing history are retained; resubscribing requires a new Subscription.</p></div>
+  {{if .Subscription.CanCancel}}
+  <form method="post" action="{{cancelURL .User.ID .Subscription.ID}}" class="panel stacked-form danger-panel">
+    <div class="field"><label for="cancelledAt">Cancellation time (UTC)</label><input id="cancelledAt" name="cancelledAt" type="datetime-local" step="1" value="{{.Form.Get "cancelledAt"}}" required autofocus><small>Cannot be before the Subscription start date.</small></div>
+    <div class="form-actions"><a class="button button-quiet" href="{{subURL .User.ID .Subscription.ID}}">Keep Subscription</a><button class="button button-danger" type="submit">Record Cancellation</button></div>
+  </form>
+  {{else}}
+  <div class="panel"><h2>Already cancelled</h2><p>This Subscription was cancelled at {{.Subscription.CancelledAt}}.</p><a class="button button-primary" href="{{subURL .User.ID .Subscription.ID}}">Return to Subscription</a></div>
+  {{end}}
+</div>
+{{end}}

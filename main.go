@@ -18,6 +18,7 @@ import (
 	"subman/internal/api"
 	"subman/internal/app"
 	"subman/internal/repository/mongodb"
+	"subman/internal/web"
 )
 
 const (
@@ -68,9 +69,16 @@ func run(
 		return fmt.Errorf("listen http: %w", err)
 	}
 
+	apiHandler := api.NewServer(svc)
+	handler := http.NewServeMux()
+	handler.Handle("/healthz", apiHandler)
+	handler.Handle("/users", apiHandler)
+	handler.Handle("/users/", apiHandler)
+	handler.Handle("/", web.NewServer(svc))
+
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           api.NewServer(svc),
+		Handler:           handler,
 		ErrorLog:          logger,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
